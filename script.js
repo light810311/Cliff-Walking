@@ -45,6 +45,8 @@ document.addEventListener('DOMContentLoaded', () => {
             // Add click listener
             cell.addEventListener('click', () => handleCellClick(cell));
 
+
+
             gridContainer.appendChild(cell);
         }
     }
