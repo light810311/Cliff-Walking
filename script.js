@@ -7,6 +7,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const resultsSection = document.getElementById('results-section');
     const valueMatrixContainer = document.getElementById('value-matrix-container');
     const policyMatrixContainer = document.getElementById('policy-matrix-container');
+    const bestPathMatrixContainer = document.getElementById('best-path-matrix-container');
     // Reward inputs
     const goalRewardInput = document.getElementById('goal-reward');
     const stepPenaltyInput = document.getElementById('step-penalty');
@@ -146,10 +147,13 @@ document.addEventListener('DOMContentLoaded', () => {
         valueMatrixContainer.style.gridTemplateRows = `repeat(${n}, 1fr)`;
         policyMatrixContainer.style.gridTemplateColumns = `repeat(${n}, 1fr)`;
         policyMatrixContainer.style.gridTemplateRows = `repeat(${n}, 1fr)`;
+        bestPathMatrixContainer.style.gridTemplateColumns = `repeat(${n}, 1fr)`;
+        bestPathMatrixContainer.style.gridTemplateRows = `repeat(${n}, 1fr)`;
 
         // Clear existing results
         valueMatrixContainer.innerHTML = '';
         policyMatrixContainer.innerHTML = '';
+        bestPathMatrixContainer.innerHTML = '';
 
         // Internal representation
         // Grid is n x n. (0,0) is top-left in display, but let's just use 1D array index (0 to n*n-1)
@@ -237,6 +241,43 @@ document.addEventListener('DOMContentLoaded', () => {
             iter++;
         }
 
+        // Find Best Path
+        const bestPath = new Set();
+        let currentState = states.findIndex(s => s.dataset.type === 'start');
+        let pathLength = 0;
+        const maxPathLength = n * n; // prevent infinite loop
+
+        while (currentState !== -1 && currentState !== endStateIndex && pathLength < maxPathLength) {
+            bestPath.add(currentState);
+            
+            let maxQ = -Infinity;
+            let bestNextState = -1;
+            
+            for (const a of actions) {
+                const { nextState, reward } = getTransition(currentState, a);
+                const q = reward + discountFactor * V[nextState];
+                // Introduce a slight preference to pick first equivalent action to avoid getting stuck 
+                if (q > maxQ + 1e-6) {
+                    maxQ = q;
+                    bestNextState = nextState;
+                }
+            }
+            
+            // If we are bouncing to the same state (wall), and not reaching goal, break
+            if (bestNextState === currentState || bestNextState === -1) {
+                break;
+            }
+            // If the next state is already in bestPath, we are in a loop
+            if (bestPath.has(bestNextState)) {
+                break;
+            }
+            currentState = bestNextState;
+            pathLength++;
+        }
+        if (currentState === endStateIndex) {
+            bestPath.add(endStateIndex);
+        }
+
         // Policy Extraction and Rendering
         for (let i = 0; i < n * n; i++) {
             const type = states[i].dataset.type;
@@ -282,6 +323,60 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             }
             policyMatrixContainer.appendChild(pCell);
+
+            // Create Best Path matrix cell
+            const bpCell = document.createElement('div');
+            bpCell.className = `grid-cell ${type}`;
+            if (bestPath.has(i) && type !== 'start' && type !== 'end') {
+                bpCell.classList.add('path');
+            }
+
+            if (type !== 'end' && type !== 'obstacle') {
+                let maxQ = -Infinity;
+                let bestActions = [];
+
+                for (const a of actions) {
+                    const { nextState, reward } = getTransition(i, a);
+                    const q = reward + discountFactor * V[nextState];
+
+                    if (q > maxQ + 1e-6) {
+                        maxQ = q;
+                        bestActions = [a.id];
+                    } else if (Math.abs(q - maxQ) <= 1e-6) {
+                        bestActions.push(a.id);
+                    }
+                }
+
+                bestActions.forEach(actionId => {
+                    const arrow = document.createElement('div');
+                    arrow.className = `policy-arrow arrow-${actionId}`;
+                    bpCell.appendChild(arrow);
+                });
+            }
+            
+            if (type === 'start') {
+                const label = document.createElement('div');
+                label.textContent = 'START';
+                label.style.position = 'absolute';
+                label.style.top = '2px';
+                label.style.left = '4px';
+                label.style.fontSize = '10px';
+                label.style.color = '#020617';
+                label.style.fontWeight = '700';
+                bpCell.appendChild(label);
+            } else if (type === 'end') {
+                const label = document.createElement('div');
+                label.textContent = 'END';
+                label.style.position = 'absolute';
+                label.style.bottom = '2px';
+                label.style.right = '4px';
+                label.style.fontSize = '10px';
+                label.style.color = '#020617';
+                label.style.fontWeight = '700';
+                bpCell.appendChild(label);
+            }
+
+            bestPathMatrixContainer.appendChild(bpCell);
         }
     }
 
