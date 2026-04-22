@@ -10,7 +10,7 @@ An interactive, web-based visualization that compares the performance and behavi
 - **Visual Grid Environments:** Highlights the Start point (S), Goal point (G), and the dangerous Cliff (☠) along the bottom row, with directional arrows indicating the greedy policy derived from the Q-tables.
 - **Theoretical Report:** Includes a detailed section explaining the mathematical and behavioral differences between the algorithms.
 
-## 五、理論比較與討論
+## 理論比較與討論
 
 ### 1. 演算法特性
 **Q-learning（離策略 Off-policy）：** 其更新公式使用 `max Q(s', a')`，亦即假設下一個狀態會採取最優行動。這使得 Q-learning 能學到到達終點的最短（理論最優）路徑。但在訓練期間，由於使用 ε-greedy 策略，代理偶爾會採取隨機的探索動作。如果最優路徑緊貼懸崖邊緣，隨機探索會導致代理容易掉入懸崖，從而遭受極大懲罰。
