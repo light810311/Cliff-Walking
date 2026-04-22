@@ -491,3 +491,76 @@ button:active {
         width: 100%;
     }
 }
+
+/* Cliff Cells */
+.grid-cell.cliff {
+    background: #000000;
+    color: #ef4444;
+    box-shadow: inset 0 4px 10px rgba(0, 0, 0, 0.8);
+    position: relative;
+}
+
+.grid-cell.cliff::before {
+    content: '☠';
+    font-size: 1.2rem;
+    position: absolute;
+}
+
+/* Report Section */
+.report-section {
+    background: var(--card-bg);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 1rem;
+    padding: 2.5rem;
+    box-shadow: 0 15px 35px -5px rgba(0, 0, 0, 0.4);
+    margin-top: 2rem;
+}
+
+.report-section h2 {
+    font-size: 1.8rem;
+    margin-bottom: 1.5rem;
+    color: #f8fafc;
+    border-bottom: 2px solid var(--accent-color);
+    padding-bottom: 0.5rem;
+    display: inline-block;
+}
+
+.report-content h3 {
+    font-size: 1.3rem;
+    color: #60a5fa;
+    margin-top: 1.5rem;
+    margin-bottom: 0.75rem;
+}
+
+.report-content p, .report-content ul {
+    font-size: 1.05rem;
+    line-height: 1.6;
+    color: #cbd5e1;
+    margin-bottom: 1rem;
+}
+
+.report-content ul {
+    padding-left: 1.5rem;
+}
+
+.report-content li {
+    margin-bottom: 0.5rem;
+}
+
+.chart-card {
+    background: var(--card-bg);
+    padding: 1.5rem;
+    border-radius: 1rem;
+}
+
+canvas#learningCurveChart {
+    width: 100% !important;
+    height: 400px !important;
+}
+
+/* Allow grid wrapper to expand more for 12 columns */
+.grid-container {
+    max-width: 800px;
+}

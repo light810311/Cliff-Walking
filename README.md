@@ -1,92 +1,46 @@
-<div align="center">
-  <h1>🌐 GridWorld Pathfinding & RL Planner</h1>
-  <p>An interactive, beautifully animated web-based Reinforcement Learning environment and grid generator.</p>
+# Q-learning vs SARSA in Cliff Walking
 
-  <img src="demo.webp" alt="GridWorld Demo" width="600"/>
-</div>
+An interactive, web-based visualization that compares the performance and behavior of two classic reinforcement learning algorithms—**Q-learning** (Off-policy) and **SARSA** (On-policy)—in the standard 4x12 **Cliff Walking** environment.
 
----
+## 🌟 Features
 
-## 📖 Introduction
+- **Interactive Hyperparameter Tuning:** Adjust the Learning Rate ($\alpha$), Discount Factor ($\gamma$), Exploration Rate ($\epsilon$), and total training Episodes directly from the UI.
+- **Side-by-Side Comparison:** Simultaneously trains both agents and visualizes their learned policies and best paths on identical grids.
+- **Live Learning Curves:** Automatically plots the Total Reward per Episode using `Chart.js`, applying a dynamic moving average to clearly show the convergence and stability differences between the two methods.
+- **Visual Grid Environments:** Highlights the Start point (S), Goal point (G), and the dangerous Cliff (☠) along the bottom row, with directional arrows indicating the greedy policy derived from the Q-tables.
+- **Theoretical Report:** Includes a detailed section explaining the mathematical and behavioral differences between the algorithms.
 
-**GridWorld** is a classic Reinforcement Learning environment brought to life in your browser. This project allows you to construct dynamic mazes, configure Markov Decision Process (MDP) parameters, and watch the legendary **Value Iteration** algorithm compute the optimal policy and shortest path right before your eyes!
+## 🧠 About the Algorithms
 
-Whether you are a student learning about Dynamic Programming, an educator demonstrating AI pathfinding, or just someone who enjoys interactive web widgets, this tool provides a hands-on experience with core RL concepts.
+The Cliff Walking problem is a classic gridworld task from Sutton and Barto's *Reinforcement Learning: An Introduction*.
 
-## ✨ Key Features
+1. **Q-learning (Off-policy):**
+   - The update rule assumes the agent will take the *best* possible action in the next state, regardless of the actual $\epsilon$-greedy policy being followed.
+   - **Behavior:** It learns the absolute shortest path to the goal, which happens to run directly alongside the cliff. However, during training with $\epsilon > 0$, the occasional random action will frequently cause the agent to fall off the cliff, resulting in a lower average reward per episode.
+   
+2. **SARSA (On-policy):**
+   - The update rule uses the *actual* action selected by the $\epsilon$-greedy policy for the next state.
+   - **Behavior:** It accounts for the inherent risk of exploration. Knowing that random actions might lead to falling off the cliff, SARSA learns a longer, much safer path that stays away from the edge. This results in higher average reward and much better stability during training.
 
-- **🎛️ Dynamic Grid Generation**: Create any $n \times n$ grid on the fly (scales fluidly up to $10 \times 10$). The UI automatically resizes to prevent overlapping!
-- **🖱️ Interactive State Editor**: Click any cell in the grid to cycle its state:
-  1.  **Empty** (Default)
-  2.  **Start State** (Green) - The starting point of the agent.
-  3.  **End State** (Red) - The goal state the agent wants to reach.
-  4.  **Obstacle** (Gray) - Walls that block the agent's movement. Dynamically limited to $n - 1$ to ensure solvable paths.
-- **⚙️ Configurable MDP Parameters**: Adjust the environment's underlying Reinforcement Learning properties:
-  - **Goal Reward**: The positive reinforcement received when hitting the end state (e.g., `+10`).
-  - **Step Penalty**: The cost of taking a single step (e.g., `-0.1` to encourage shorter, more efficient paths).
-  - **Obstacle Penalty**: The cost/penalty of hitting an obstacle (e.g., `-1`).
-  - **Discount Factor ($\gamma$)**: Determines the importance of future rewards vs immediate rewards (e.g., `0.9`).
-- **🧠 Real-time Value Iteration**: Click **Plan** to instantly run the Value Iteration algorithm.
-- **📊 Comprehensive Visualizations**: Once planned, the app visually renders three distinct matrices:
-  1.  **Value Matrix**: The converged max expected utility ($V(s)$) for every state.
-  2.  **Policy Matrix**: Arrow vectors ($\uparrow, \downarrow, \leftarrow, \rightarrow$) showing the greedy optimal action(s) for every state.
-  3.  **Best Path Matrix**: Highlights the single optimal continuous route from the Start state to the End state based on the calculated policy.
-- **🎨 Modern UI/UX**: Designed with a clean, dark-themed glassmorphism aesthetic, responsive CSS Grid layouts, and smooth CSS pop-in animations.
+## 🚀 How to Run
 
-## 🚀 How to Run (Local Installation)
-
-Because this is a vanilla HTML/CSS/JS project, you don't need to install any heavy Javascript frameworks, Node.js, or run a complex build step!
-
-1. **Clone the repository**:
+1. Clone this repository to your local machine:
    ```bash
-   git clone https://github.com/light810311/GridWorld.git
-   cd GridWorld
+   git clone https://github.com/light810311/Cliff-Walking.git
    ```
-2. **Open the project**:
-   Simply double-click `index.html` to open it in any modern web browser (Chrome, Firefox, Safari, Edge).
-3. **Play and Learn**:
-   - Set your grid size using the input box and click **Generate Square**.
-   - Design your map by clicking on the cells to place your Start, End, and Obstacle blocks.
-   - Tweak your MDP rewards/penalties to see how it affects the agent's behavior.
-   - Click the **Plan** button to witness the Value Iteration results and the Best Path visualization.
+2. Navigate into the directory:
+   ```bash
+   cd Cliff-Walking
+   ```
+3. Open `index.html` in any modern web browser. No local server or build process is required!
+4. Adjust the hyperparameters as desired and click **"Train Agents"**.
 
-## 🛠️ Technologies Used
+## 🛠️ Technology Stack
 
-- **HTML5**: Semantic tags and clean structure.
-- **CSS3**: 
-  - CSS Variables for easy theming
-  - Flexbox and CSS Grid for complex, responsive 2D layouts
-  - Keyframe animations (`@keyframes`) for interactive feedback
-  - Glassmorphism effects (`backdrop-filter`) for premium visual depth
-- **JavaScript**: 
-  - Vanilla JS (ES6+)
-  - DOM Manipulation without external libraries like React/Vue
-  - Custom implementation of the Value Iteration algorithmic loop
+- **HTML5 & CSS3:** For structuring and styling the responsive grid and UI components.
+- **Vanilla JavaScript:** Contains the core Reinforcement Learning logic, environment dynamics, and DOM manipulation.
+- **Chart.js:** Used via CDN for rendering the dynamic learning curves.
 
-## 📐 Algorithm Deep Dive: Value Iteration
+## 📝 License
 
-This application uses **Value Iteration**, a fundamental algorithm in Reinforcement Learning used to solve Markov Decision Processes (MDPs) assuming optimal knowledge of the environment.
-
-### Mathematical Formulation
-The algorithm repeatedly applies the **Bellman Optimality Equation** until the state values converge. For every state $s$, the value $V(s)$ is updated by finding the maximum expected return across all possible actions $a$:
-
-$$ V(s) \leftarrow \max_a \left[ R(s, a, s') + \gamma V(s') \right] $$
-
-Where:
-- $a \in \{\text{Up}, \text{Down}, \text{Left}, \text{Right}\}$
-- $R(s, a, s')$ is the immediate reward of taking action $a$ in state $s$ (e.g., Step Penalty, Obstacle Penalty, or Goal Reward).
-- $\gamma$ (gamma) is the discount factor.
-- $V(s')$ is the value of the resulting next state $s'$.
-
-### Policy Extraction
-Once the values coverage (when the maximum change in any state value drops below a tiny threshold $\theta$), the optimal policy $\pi^*(s)$ is extracted by simply acting greedily with respect to the final value function:
-
-$$ \pi^*(s) = \arg\max_a \left[ R(s, a, s') + \gamma V(s') \right] $$
-
-Our **Best Path** visualization follows this exact policy matrix from the Start State to automatically trace the optimal route!
-
-## 🤝 Contributing
-Contributions, issues, and feature requests are welcome! Feel free to check the issues page.
-
----
-*Created for Reinforcement Learning studies & Interactive Web Development.*
+This project is open-source and available under the [MIT License](LICENSE).

@@ -4,94 +4,84 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Generate n x n Square</title>
+    <title>Q-learning vs SARSA in Cliff Walking</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 
 <body>
     <div class="container">
         <header>
-            <h1>Generate n x n Square</h1>
-            <p>An interactive grid generator with customizable start, end, and obstacles.</p>
+            <h1>Q-learning vs SARSA</h1>
+            <p>Cliff Walking Environment (4x12) - Comparing Off-policy and On-policy learning.</p>
         </header>
 
         <main>
             <div class="controls-card">
-                <div class="input-group">
-                    <label for="grid-size">Enter a number between 3 and 10:</label>
-                    <input type="number" id="grid-size" min="3" max="10" value="5">
-                    <button id="generate-btn">Generate Square</button>
-                    <button id="plan-btn" class="plan-btn">Plan</button>
-                </div>
                 <div class="input-group rewards-group">
                     <div class="reward-input">
-                        <label for="goal-reward">Goal Reward:</label>
-                        <input type="number" id="goal-reward" value="10" min="1" max="10" step="1">
+                        <label for="alpha">Learning Rate (&alpha;):</label>
+                        <input type="number" id="alpha" value="0.1" min="0.01" max="1" step="0.01">
                     </div>
                     <div class="reward-input">
-                        <label for="step-penalty">Step Penalty:</label>
-                        <input type="number" id="step-penalty" value="-0.1" min="-1" max="0" step="0.1">
+                        <label for="gamma">Discount Factor (&gamma;):</label>
+                        <input type="number" id="gamma" value="0.9" min="0" max="1" step="0.1">
                     </div>
                     <div class="reward-input">
-                        <label for="obstacle-penalty">Obstacle Penalty:</label>
-                        <input type="number" id="obstacle-penalty" value="-1" min="-10" max="0" step="1">
+                        <label for="epsilon">Exploration Rate (&epsilon;):</label>
+                        <input type="number" id="epsilon" value="0.1" min="0" max="1" step="0.01">
                     </div>
                     <div class="reward-input">
-                        <label for="discount-factor">Discount Factor (&gamma;):</label>
-                        <input type="number" id="discount-factor" value="0.9" min="0" max="1" step="0.1">
+                        <label for="episodes">Episodes:</label>
+                        <input type="number" id="episodes" value="500" min="10" max="5000" step="10">
                     </div>
+                    <button id="train-btn" class="plan-btn" style="margin-top: 1.5rem; width: 100%;">Train Agents</button>
                 </div>
             </div>
 
-            <div class="grid-section">
-                <h2 id="grid-title">5 x 5 Square:</h2>
-
-                <div class="instructions">
-                    <p>1. Click on a cell to set up the start grid as green, the end grid as red, or an obstacle as
-                        gray.</p>
-                    <p>2. The number of obstacles is limited to <strong>n-1</strong> (Limit: <span
-                            id="obstacle-limit-display" style="color: #3b82f6; font-weight: 700;">4</span>).</p>
-                    <p class="sub-instruction" style="margin-top: 0.75rem;">Hint: Click cycling logic &rarr; <span
-                            style="color: #10b981; font-weight: 600;">Start</span>, then <span
-                            style="color: #ef4444; font-weight: 600;">End</span>, then <span
-                            style="color: #94a3b8; font-weight: 600;">Obstacle</span>, then Empty.</p>
-                </div>
-
-                <div class="grid-wrapper">
-                    <div class="grid-container" id="grid-container">
-                        <!-- Grid cells are injected via JS -->
-                    </div>
-                </div>
-            </div>
-
-            <!-- Value Iteration Results Section -->
             <div id="results-section" class="results-section hidden">
-                <div class="result-card">
-                    <h2 class="result-title">Value Matrix</h2>
+                <div class="result-card" style="flex: 1 1 100%; max-width: 800px; margin: 0 auto;">
+                    <h2 class="result-title">SARSA Policy (On-policy)</h2>
                     <div class="grid-wrapper">
-                        <div class="grid-container" id="value-matrix-container">
-                            <!-- Value matrix cells injected via JS -->
-                        </div>
-                    </div>
-                </div>
-
-                <div class="result-card">
-                    <h2 class="result-title">Policy Matrix</h2>
-                    <div class="grid-wrapper">
-                        <div class="grid-container" id="policy-matrix-container">
+                        <div class="grid-container" id="sarsa-policy-container">
                             <!-- Policy matrix cells injected via JS -->
                         </div>
                     </div>
                 </div>
 
-                <div class="result-card">
-                    <h2 class="result-title">Best Path</h2>
+                <div class="result-card" style="flex: 1 1 100%; max-width: 800px; margin: 0 auto;">
+                    <h2 class="result-title">Q-learning Policy (Off-policy)</h2>
                     <div class="grid-wrapper">
-                        <div class="grid-container" id="best-path-matrix-container">
-                            <!-- Best path cells injected via JS -->
+                        <div class="grid-container" id="qlearning-policy-container">
+                            <!-- Policy matrix cells injected via JS -->
                         </div>
                     </div>
+                </div>
+
+                <div class="result-card chart-card" style="flex: 1 1 100%; max-width: 800px; margin: 0 auto;">
+                    <h2 class="result-title">Learning Curve (Total Reward per Episode)</h2>
+                    <canvas id="learningCurveChart"></canvas>
+                </div>
+            </div>
+
+            <div class="report-section">
+                <h2>五、理論比較與討論</h2>
+                <div class="report-content">
+                    <h3>1. 演算法特性</h3>
+                    <p><strong>Q-learning（離策略 Off-policy）：</strong> 其更新公式使用 <code>max Q(s', a')</code>，亦即假設下一個狀態會採取最優行動。這使得 Q-learning 能學到到達終點的最短（理論最優）路徑。但在訓練期間，由於使用 ε-greedy 策略，代理偶爾會採取隨機的探索動作。如果最優路徑緊貼懸崖邊緣，隨機探索會導致代理容易掉入懸崖，從而遭受極大懲罰。</p>
+                    <p><strong>SARSA（同策略 On-policy）：</strong> 其更新公式使用 <code>Q(s', a')</code>，其中 <code>a'</code> 是實際基於當前 ε-greedy 策略選出的行動。這意味著 SARSA 的價值估計會將「探索可能帶來的風險」納入考量。因此，SARSA 傾向於學習到一條較為安全、遠離懸崖的路徑。</p>
+
+                    <h3>2. 學習表現與穩定性</h3>
+                    <p>觀察學習曲線（Learning Curve）可以發現，SARSA 在收斂後的每回合平均累積獎勵通常高於 Q-learning。這是因為 Q-learning 的最優策略在懸崖邊緣，ε-greedy 的探索會讓它經常掉下去（導致當回合獲得 -100）。而 SARSA 選擇遠離懸崖，即使偶爾隨機移動，也不太容易掉入懸崖，因此表現較穩定，波動較小。</p>
+
+                    <h3>3. 結論</h3>
+                    <ul>
+                        <li><strong>收斂較快/穩定：</strong> SARSA 通常在實際執行的回饋上較快達到穩定的獎勵水準，因為它學會了規避訓練過程中的探索風險，波動程度較低。</li>
+                        <li><strong>何時選擇 Q-learning：</strong> 當訓練環境（Simulator）與實際執行環境不同，或者在實際執行時不會再進行探索（ε=0，完全貪婪）時，Q-learning 可以獲得最佳的理論路徑。</li>
+                        <li><strong>何時選擇 SARSA：</strong> 當學習過程中的錯誤成本很高（例如實體機器人），或者我們關心的是代理在「持續探索」狀態下的整體表現時，SARSA 是更安全穩定的選擇。</li>
+                    </ul>
                 </div>
             </div>
         </main>

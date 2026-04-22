@@ -1,404 +1,308 @@
 document.addEventListener('DOMContentLoaded', () => {
-    const gridSizeInput = document.getElementById('grid-size');
-    const generateBtn = document.getElementById('generate-btn');
-    const planBtn = document.getElementById('plan-btn');
-    const gridTitle = document.getElementById('grid-title');
-    const gridContainer = document.getElementById('grid-container');
+    const trainBtn = document.getElementById('train-btn');
     const resultsSection = document.getElementById('results-section');
-    const valueMatrixContainer = document.getElementById('value-matrix-container');
-    const policyMatrixContainer = document.getElementById('policy-matrix-container');
-    const bestPathMatrixContainer = document.getElementById('best-path-matrix-container');
-    // Reward inputs
-    const goalRewardInput = document.getElementById('goal-reward');
-    const stepPenaltyInput = document.getElementById('step-penalty');
-    const obstaclePenaltyInput = document.getElementById('obstacle-penalty');
-    const discountFactorInput = document.getElementById('discount-factor');
+    const qPolicyContainer = document.getElementById('qlearning-policy-container');
+    const sarsaPolicyContainer = document.getElementById('sarsa-policy-container');
+    
+    // Hyperparameters
+    const alphaInput = document.getElementById('alpha');
+    const gammaInput = document.getElementById('gamma');
+    const epsilonInput = document.getElementById('epsilon');
+    const episodesInput = document.getElementById('episodes');
 
-    let startCell = null;
-    let endCell = null;
+    let learningChart = null;
 
-    function generateGrid() {
-        let n = parseInt(gridSizeInput.value);
+    // Environment Setup (4x12)
+    const ROWS = 4;
+    const COLS = 12;
+    const NUM_STATES = ROWS * COLS;
+    const START_STATE = 3 * COLS + 0; // (3, 0)
+    const GOAL_STATE = 3 * COLS + 11; // (3, 11)
+    
+    // Actions: 0: Up, 1: Right, 2: Down, 3: Left
+    const ACTIONS = [
+        { id: 0, dr: -1, dc: 0, name: 'up' },
+        { id: 1, dr: 0, dc: 1, name: 'right' },
+        { id: 2, dr: 1, dc: 0, name: 'down' },
+        { id: 3, dr: 0, dc: -1, name: 'left' }
+    ];
 
-        // Validation
-        if (isNaN(n) || n < 3 || n > 10) {
-            alert('Please enter a valid number between 3 and 10.');
-            return;
+    function isCliff(state) {
+        const r = Math.floor(state / COLS);
+        const c = state % COLS;
+        return r === 3 && c >= 1 && c <= 10;
+    }
+
+    function step(state, actionId) {
+        const r = Math.floor(state / COLS);
+        const c = state % COLS;
+        const action = ACTIONS[actionId];
+        
+        let nr = r + action.dr;
+        let nc = c + action.dc;
+        
+        // Bounce off walls
+        if (nr < 0 || nr >= ROWS || nc < 0 || nc >= COLS) {
+            nr = r;
+            nc = c;
         }
 
-        // Update title and obstacle limit display
-        gridTitle.textContent = `${n} x ${n} Square:`;
-        const obstacleLimitDisplay = document.getElementById('obstacle-limit-display');
-        if (obstacleLimitDisplay) {
-            obstacleLimitDisplay.textContent = n - 1;
+        const nextState = nr * COLS + nc;
+
+        if (isCliff(nextState)) {
+            return { nextState: START_STATE, reward: -100, done: false };
         }
 
-        // Clear existing grid
-        gridContainer.innerHTML = '';
+        if (nextState === GOAL_STATE) {
+            return { nextState, reward: -1, done: true };
+        }
 
-        // Update CSS grid layout
-        gridContainer.style.gridTemplateColumns = `repeat(${n}, 1fr)`;
-        gridContainer.style.gridTemplateRows = `repeat(${n}, 1fr)`;
+        return { nextState, reward: -1, done: false };
+    }
 
-        // Reset state
-        startCell = null;
-        endCell = null;
-
-        // Generate cells
-        for (let i = 1; i <= n * n; i++) {
-            const cell = document.createElement('div');
-            cell.classList.add('grid-cell');
-            cell.textContent = i;
-            cell.dataset.index = i;
-            cell.dataset.type = 'empty';
-
-            // Add click listener
-            cell.addEventListener('click', () => handleCellClick(cell));
-
-
-
-            gridContainer.appendChild(cell);
+    function chooseAction(state, Q, epsilon) {
+        if (Math.random() < epsilon) {
+            return Math.floor(Math.random() * ACTIONS.length);
+        } else {
+            let maxQ = -Infinity;
+            let bestActions = [];
+            for (let a = 0; a < ACTIONS.length; a++) {
+                if (Q[state][a] > maxQ) {
+                    maxQ = Q[state][a];
+                    bestActions = [a];
+                } else if (Q[state][a] === maxQ) {
+                    bestActions.push(a);
+                }
+            }
+            // Break ties randomly
+            return bestActions[Math.floor(Math.random() * bestActions.length)];
         }
     }
 
-    function setCellType(cell, type) {
-        // Play animation by removing and quickly re-adding the class
-        cell.classList.remove('start', 'end', 'obstacle');
-        // Force reflow for animation to trigger
-        void cell.offsetWidth;
+    function trainAgents() {
+        const alpha = parseFloat(alphaInput.value);
+        const gamma = parseFloat(gammaInput.value);
+        const epsilon = parseFloat(epsilonInput.value);
+        const totalEpisodes = parseInt(episodesInput.value);
 
-        // Clear references if this cell is changing type
-        if (cell === startCell && type !== 'start') startCell = null;
-        if (cell === endCell && type !== 'end') endCell = null;
+        // Initialize Q-tables [state][action]
+        let qQ = Array.from({length: NUM_STATES}, () => Array(ACTIONS.length).fill(0));
+        let sarsaQ = Array.from({length: NUM_STATES}, () => Array(ACTIONS.length).fill(0));
 
-        if (type === 'start') {
-            if (startCell && startCell !== cell) {
-                startCell.classList.remove('start');
-                startCell.dataset.type = 'empty';
+        let qRewards = [];
+        let sarsaRewards = [];
+
+        // Q-learning
+        for (let ep = 0; ep < totalEpisodes; ep++) {
+            let state = START_STATE;
+            let totalReward = 0;
+            let done = false;
+            let steps = 0;
+
+            while (!done && steps < 1000) { // Limit steps to prevent infinite loops early on
+                let action = chooseAction(state, qQ, epsilon);
+                let { nextState, reward, done: isDone } = step(state, action);
+                
+                totalReward += reward;
+                
+                let maxNextQ = Math.max(...qQ[nextState]);
+                qQ[state][action] += alpha * (reward + gamma * maxNextQ - qQ[state][action]);
+                
+                state = nextState;
+                done = isDone;
+                steps++;
             }
-            startCell = cell;
-        } else if (type === 'end') {
-            if (endCell && endCell !== cell) {
-                endCell.classList.remove('end');
-                endCell.dataset.type = 'empty';
-            }
-            endCell = cell;
+            qRewards.push(totalReward);
         }
 
-        if (type !== 'empty') {
-            cell.classList.add(type);
+        // SARSA
+        for (let ep = 0; ep < totalEpisodes; ep++) {
+            let state = START_STATE;
+            let totalReward = 0;
+            let done = false;
+            let steps = 0;
+            
+            let action = chooseAction(state, sarsaQ, epsilon);
+
+            while (!done && steps < 1000) {
+                let { nextState, reward, done: isDone } = step(state, action);
+                
+                totalReward += reward;
+                
+                let nextAction = chooseAction(nextState, sarsaQ, epsilon);
+                
+                sarsaQ[state][action] += alpha * (reward + gamma * sarsaQ[nextState][nextAction] - sarsaQ[state][action]);
+                
+                state = nextState;
+                action = nextAction;
+                done = isDone;
+                steps++;
+            }
+            sarsaRewards.push(totalReward);
         }
-        cell.dataset.type = type;
+
+        renderResults(qQ, sarsaQ, qRewards, sarsaRewards);
     }
 
-    function handleCellClick(cell) {
-        const currentType = cell.dataset.type;
-        const n = parseInt(gridSizeInput.value);
-        const maxObstacles = n - 1;
-        // Count only obstacles in the main grid, not the result matrices
-        const currentObstacles = document.querySelectorAll('#grid-container .grid-cell.obstacle').length;
-
-        // Cycling logic:
-        // Empty -> Start -> End -> Obstacle -> Empty
-        // Handled contextually based on what exists
-
-        if (currentType === 'empty') {
-            if (!startCell) {
-                setCellType(cell, 'start');
-            } else if (!endCell) {
-                setCellType(cell, 'end');
-            } else if (currentObstacles < maxObstacles) {
-                setCellType(cell, 'obstacle');
-            }
-            // If limit is reached, it just stays empty
-        } else if (currentType === 'start') {
-            if (!endCell) {
-                setCellType(cell, 'end');
-            } else if (currentObstacles < maxObstacles) {
-                setCellType(cell, 'obstacle');
-            } else {
-                setCellType(cell, 'empty');
-            }
-        } else if (currentType === 'end') {
-            if (currentObstacles < maxObstacles) {
-                setCellType(cell, 'obstacle');
-            } else {
-                setCellType(cell, 'empty');
-            }
-        } else if (currentType === 'obstacle') {
-            setCellType(cell, 'empty');
+    // Moving average function for smoother charts
+    function movingAverage(data, windowSize) {
+        const result = [];
+        for (let i = 0; i < data.length; i++) {
+            const start = Math.max(0, i - windowSize + 1);
+            const subset = data.slice(start, i + 1);
+            const sum = subset.reduce((a, b) => a + b, 0);
+            result.push(sum / subset.length);
         }
+        return result;
     }
 
-    function planGrid() {
-        if (!startCell || !endCell) {
-            alert("Please set both a start and an end cell before planning!");
-            return;
-        }
-
-        const n = parseInt(gridSizeInput.value);
-        const { goalReward, stepPenalty, obstaclePenalty, discountFactor } = window.getRewardSettings();
-
-        // Reveal results section
+    function renderResults(qQ, sarsaQ, qRewards, sarsaRewards) {
         resultsSection.classList.remove('hidden');
 
-        // Setup the matrices containers CSS grid
-        valueMatrixContainer.style.gridTemplateColumns = `repeat(${n}, 1fr)`;
-        valueMatrixContainer.style.gridTemplateRows = `repeat(${n}, 1fr)`;
-        policyMatrixContainer.style.gridTemplateColumns = `repeat(${n}, 1fr)`;
-        policyMatrixContainer.style.gridTemplateRows = `repeat(${n}, 1fr)`;
-        bestPathMatrixContainer.style.gridTemplateColumns = `repeat(${n}, 1fr)`;
-        bestPathMatrixContainer.style.gridTemplateRows = `repeat(${n}, 1fr)`;
+        // Render Grids
+        renderPolicyGrid(qPolicyContainer, qQ, extractBestPath(qQ));
+        renderPolicyGrid(sarsaPolicyContainer, sarsaQ, extractBestPath(sarsaQ));
 
-        // Clear existing results
-        valueMatrixContainer.innerHTML = '';
-        policyMatrixContainer.innerHTML = '';
-        bestPathMatrixContainer.innerHTML = '';
-
-        // Internal representation
-        // Grid is n x n. (0,0) is top-left in display, but let's just use 1D array index (0 to n*n-1)
-        const states = Array.from(gridContainer.children); // Have type 'empty', 'start', 'end', 'obstacle'
-        let V = new Array(n * n).fill(0);
-
-        // Map UI index to 0-based coordinate system (row, col)
-        const getRowCol = (index) => ({ r: Math.floor(index / n), c: index % n });
-        const getIndex = (r, c) => r * n + c;
-
-        const endStateIndex = states.findIndex(s => s.dataset.type === 'end');
-
-        const actions = [
-            { id: 'up', dr: -1, dc: 0 },
-            { id: 'down', dr: 1, dc: 0 },
-            { id: 'left', dr: 0, dc: -1 },
-            { id: 'right', dr: 0, dc: 1 }
-        ];
-
-        // Transition function
-        // Returns { nextState: index, reward: value }
-        const getTransition = (stateIndex, action) => {
-            const { r, c } = getRowCol(stateIndex);
-
-            // If already at end state, it sits there absorbing (0 reward) 
-            // - but actually standard value iteration often just fixes V(end)=0 and doesn't update it
-
-            const nr = r + action.dr;
-            const nc = c + action.dc;
-
-            // Check boundaries
-            if (nr < 0 || nr >= n || nc < 0 || nc >= n) {
-                return { nextState: stateIndex, reward: stepPenalty }; // Bounce back
-            }
-
-            const nIndex = getIndex(nr, nc);
-            const nType = states[nIndex].dataset.type;
-
-            if (nType === 'obstacle') {
-                return { nextState: stateIndex, reward: obstaclePenalty }; // Bounce back
-            }
-
-            if (nType === 'end') {
-                return { nextState: nIndex, reward: goalReward }; // Reach goal
-            }
-
-            // Normal move
-            return { nextState: nIndex, reward: stepPenalty };
-        };
-
-        // Value Iteration
-        const theta = 1e-4; // Convergence threshold
-        let maxChange = Infinity;
-        let iter = 0;
-        const maxIter = 1000;
-
-        while (maxChange > theta && iter < maxIter) {
-            maxChange = 0;
-            const nextV = [...V];
-
-            for (let i = 0; i < n * n; i++) {
-                // Skip if it's the end state or obstacle
-                if (states[i].dataset.type === 'end') {
-                    nextV[i] = 0; // Value of absorbing state is 0
-                    continue;
-                }
-                if (states[i].dataset.type === 'obstacle') {
-                    nextV[i] = 0;
-                    continue;
-                }
-
-                let maxQ = -Infinity;
-                for (const a of actions) {
-                    const { nextState, reward } = getTransition(i, a);
-                    const q = reward + discountFactor * V[nextState];
-                    if (q > maxQ) {
-                        maxQ = q;
-                    }
-                }
-
-                maxChange = Math.max(maxChange, Math.abs(maxQ - V[i]));
-                nextV[i] = maxQ;
-            }
-            V = nextV;
-            iter++;
+        // Render Chart
+        const ctx = document.getElementById('learningCurveChart').getContext('2d');
+        if (learningChart) {
+            learningChart.destroy();
         }
 
-        // Find Best Path
-        const bestPath = new Set();
-        let currentState = states.findIndex(s => s.dataset.type === 'start');
-        let pathLength = 0;
-        const maxPathLength = n * n; // prevent infinite loop
+        const labels = Array.from({length: qRewards.length}, (_, i) => i + 1);
+        const windowSize = Math.max(1, Math.floor(qRewards.length / 50)); // Dynamic smoothing window
+        
+        learningChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: 'Q-learning',
+                        data: movingAverage(qRewards, windowSize),
+                        borderColor: '#ef4444',
+                        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        tension: 0.2
+                    },
+                    {
+                        label: 'SARSA',
+                        data: movingAverage(sarsaRewards, windowSize),
+                        borderColor: '#3b82f6',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        tension: 0.2
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: {
+                        title: { display: true, text: 'Episodes', color: '#94a3b8' },
+                        grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                        ticks: { color: '#94a3b8' }
+                    },
+                    y: {
+                        title: { display: true, text: `Sum of Rewards (MA-${windowSize})`, color: '#94a3b8' },
+                        grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                        ticks: { color: '#94a3b8' },
+                        min: Math.max(-500, Math.min(...movingAverage(qRewards, windowSize), ...movingAverage(sarsaRewards, windowSize)) - 20)
+                    }
+                },
+                plugins: {
+                    legend: {
+                        labels: { color: '#f8fafc' }
+                    }
+                }
+            }
+        });
+    }
 
-        while (currentState !== -1 && currentState !== endStateIndex && pathLength < maxPathLength) {
-            bestPath.add(currentState);
-            
+    function extractBestPath(Q) {
+        let path = new Set();
+        let state = START_STATE;
+        let maxSteps = 100;
+        let steps = 0;
+        
+        while (state !== GOAL_STATE && steps < maxSteps) {
+            path.add(state);
+            let bestAction = 0;
             let maxQ = -Infinity;
-            let bestNextState = -1;
-            
-            for (const a of actions) {
-                const { nextState, reward } = getTransition(currentState, a);
-                const q = reward + discountFactor * V[nextState];
-                // Introduce a slight preference to pick first equivalent action to avoid getting stuck 
-                if (q > maxQ + 1e-6) {
-                    maxQ = q;
-                    bestNextState = nextState;
+            for (let a = 0; a < ACTIONS.length; a++) {
+                // Add tiny noise to avoid tie-breaker loops visually
+                let qVal = Q[state][a] + Math.random() * 1e-6;
+                if (qVal > maxQ) {
+                    maxQ = qVal;
+                    bestAction = a;
                 }
             }
             
-            // If we are bouncing to the same state (wall), and not reaching goal, break
-            if (bestNextState === currentState || bestNextState === -1) {
+            let { nextState } = step(state, bestAction);
+            if (path.has(nextState) || nextState === START_STATE) {
+                // Loop detected or hit cliff
                 break;
             }
-            // If the next state is already in bestPath, we are in a loop
-            if (bestPath.has(bestNextState)) {
-                break;
-            }
-            currentState = bestNextState;
-            pathLength++;
+            state = nextState;
+            steps++;
         }
-        if (currentState === endStateIndex) {
-            bestPath.add(endStateIndex);
+        if (state === GOAL_STATE) {
+            path.add(GOAL_STATE);
         }
+        return path;
+    }
 
-        // Policy Extraction and Rendering
-        for (let i = 0; i < n * n; i++) {
-            const type = states[i].dataset.type;
+    function renderPolicyGrid(container, Q, bestPath) {
+        container.innerHTML = '';
+        container.style.gridTemplateColumns = `repeat(${COLS}, 1fr)`;
+        container.style.gridTemplateRows = `repeat(${ROWS}, 1fr)`;
 
-            // Create Value matrix cell
-            const vCell = document.createElement('div');
-            vCell.className = `grid-cell ${type}`;
-            if (type === 'obstacle') {
-                vCell.textContent = ''; // Blank or maybe 'X'
-            } else if (type === 'end') {
-                vCell.textContent = '0'; // Terminal state 
+        for (let i = 0; i < NUM_STATES; i++) {
+            const cell = document.createElement('div');
+            cell.className = 'grid-cell';
+
+            if (i === START_STATE) {
+                cell.classList.add('start');
+                const label = document.createElement('div');
+                label.textContent = 'S';
+                label.style.fontWeight = 'bold';
+                cell.appendChild(label);
+            } else if (i === GOAL_STATE) {
+                cell.classList.add('end');
+                const label = document.createElement('div');
+                label.textContent = 'G';
+                label.style.fontWeight = 'bold';
+                cell.appendChild(label);
+            } else if (isCliff(i)) {
+                cell.classList.add('cliff');
             } else {
-                vCell.textContent = V[i].toFixed(2);
-            }
-            valueMatrixContainer.appendChild(vCell);
-
-            // Create Policy matrix cell
-            const pCell = document.createElement('div');
-            pCell.className = `grid-cell ${type}`;
-            if (type !== 'end' && type !== 'obstacle') {
-                // Find best actions
-                let maxQ = -Infinity;
-                let bestActions = [];
-
-                for (const a of actions) {
-                    const { nextState, reward } = getTransition(i, a);
-                    const q = reward + discountFactor * V[nextState];
-
-                    // Allow for a tiny bit of floating point inaccuracy
-                    if (q > maxQ + 1e-6) {
-                        maxQ = q;
-                        bestActions = [a.id];
-                    } else if (Math.abs(q - maxQ) <= 1e-6) {
-                        bestActions.push(a.id);
-                    }
+                cell.classList.add('empty');
+                
+                if (bestPath.has(i)) {
+                    cell.classList.add('path');
                 }
 
-                // Append arrows for best actions
-                bestActions.forEach(actionId => {
-                    const arrow = document.createElement('div');
-                    arrow.className = `policy-arrow arrow-${actionId}`;
-                    pCell.appendChild(arrow);
-                });
-            }
-            policyMatrixContainer.appendChild(pCell);
-
-            // Create Best Path matrix cell
-            const bpCell = document.createElement('div');
-            bpCell.className = `grid-cell ${type}`;
-            if (bestPath.has(i) && type !== 'start' && type !== 'end') {
-                bpCell.classList.add('path');
-            }
-
-            if (type !== 'end' && type !== 'obstacle') {
+                // Add arrow for greedy policy
+                let bestAction = 0;
                 let maxQ = -Infinity;
-                let bestActions = [];
-
-                for (const a of actions) {
-                    const { nextState, reward } = getTransition(i, a);
-                    const q = reward + discountFactor * V[nextState];
-
-                    if (q > maxQ + 1e-6) {
-                        maxQ = q;
-                        bestActions = [a.id];
-                    } else if (Math.abs(q - maxQ) <= 1e-6) {
-                        bestActions.push(a.id);
+                for (let a = 0; a < ACTIONS.length; a++) {
+                    if (Q[i][a] > maxQ) {
+                        maxQ = Q[i][a];
+                        bestAction = a;
                     }
                 }
-
-                bestActions.forEach(actionId => {
-                    const arrow = document.createElement('div');
-                    arrow.className = `policy-arrow arrow-${actionId}`;
-                    bpCell.appendChild(arrow);
-                });
-            }
-            
-            if (type === 'start') {
-                const label = document.createElement('div');
-                label.textContent = 'START';
-                label.style.position = 'absolute';
-                label.style.top = '2px';
-                label.style.left = '4px';
-                label.style.fontSize = '10px';
-                label.style.color = '#020617';
-                label.style.fontWeight = '700';
-                bpCell.appendChild(label);
-            } else if (type === 'end') {
-                const label = document.createElement('div');
-                label.textContent = 'END';
-                label.style.position = 'absolute';
-                label.style.bottom = '2px';
-                label.style.right = '4px';
-                label.style.fontSize = '10px';
-                label.style.color = '#020617';
-                label.style.fontWeight = '700';
-                bpCell.appendChild(label);
+                
+                const arrow = document.createElement('div');
+                arrow.className = `policy-arrow arrow-${ACTIONS[bestAction].name}`;
+                cell.appendChild(arrow);
             }
 
-            bestPathMatrixContainer.appendChild(bpCell);
+            container.appendChild(cell);
         }
     }
 
-    // Event listeners
-    generateBtn.addEventListener('click', generateGrid);
-    planBtn.addEventListener('click', planGrid);
-
-    // Also generate on Enter key in the input
-    gridSizeInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-            generateGrid();
-        }
-    });
-
-    // Function to get current rewards
-    window.getRewardSettings = () => ({
-        goalReward: parseFloat(goalRewardInput.value) || 0,
-        stepPenalty: parseFloat(stepPenaltyInput.value) || 0,
-        obstaclePenalty: parseFloat(obstaclePenaltyInput.value) || 0,
-        discountFactor: parseFloat(discountFactorInput.value) || 0
-    });
-
-    // Initial generation on load
-    generateGrid();
+    trainBtn.addEventListener('click', trainAgents);
 });
