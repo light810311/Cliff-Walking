@@ -3,6 +3,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const resultsSection = document.getElementById('results-section');
     const qPolicyContainer = document.getElementById('qlearning-policy-container');
     const sarsaPolicyContainer = document.getElementById('sarsa-policy-container');
+    const qHeatmapContainer = document.getElementById('qlearning-heatmap-container');
+    const sarsaHeatmapContainer = document.getElementById('sarsa-heatmap-container');
     
     // Hyperparameters
     const alphaInput = document.getElementById('alpha');
@@ -163,6 +165,10 @@ document.addEventListener('DOMContentLoaded', () => {
         renderPolicyGrid(qPolicyContainer, qQ, extractBestPath(qQ));
         renderPolicyGrid(sarsaPolicyContainer, sarsaQ, extractBestPath(sarsaQ));
 
+        // Render Heatmaps
+        renderHeatmap(qHeatmapContainer, qQ);
+        renderHeatmap(sarsaHeatmapContainer, sarsaQ);
+
         // Render Chart
         const ctx = document.getElementById('learningCurveChart').getContext('2d');
         if (learningChart) {
@@ -300,6 +306,55 @@ document.addEventListener('DOMContentLoaded', () => {
                 cell.appendChild(arrow);
             }
 
+            container.appendChild(cell);
+        }
+    }
+
+    function renderHeatmap(container, Q) {
+        container.innerHTML = '';
+        container.style.gridTemplateColumns = `repeat(${COLS}, 1fr)`;
+        container.style.gridTemplateRows = `repeat(${ROWS}, 1fr)`;
+
+        // Calculate values V(s) = max_a Q(s,a)
+        const values = Q.map(qRow => Math.max(...qRow));
+        
+        // Find min/max for normalization (ignoring goal and cliff for better contrast)
+        let minV = 0;
+        let maxV = -Infinity;
+        for (let i = 0; i < NUM_STATES; i++) {
+            if (i !== GOAL_STATE && !isCliff(i)) {
+                if (values[i] < minV) minV = values[i];
+                if (values[i] > maxV) maxV = values[i];
+            }
+        }
+
+        for (let i = 0; i < NUM_STATES; i++) {
+            const cell = document.createElement('div');
+            cell.className = 'grid-cell';
+            
+            if (i === GOAL_STATE) {
+                cell.classList.add('end');
+                cell.textContent = 'G';
+            } else if (isCliff(i)) {
+                cell.classList.add('cliff');
+            } else {
+                // Calculate color
+                // Normalize value to 0-1
+                const val = values[i];
+                let ratio = (val - minV) / (maxV - minV || 1);
+                ratio = Math.max(0, Math.min(1, ratio));
+
+                // Color scale: Red (low) -> Yellow -> Green (high)
+                // Using HSL: 0 is red, 120 is green
+                const hue = ratio * 120;
+                cell.style.backgroundColor = `hsla(${hue}, 70%, 35%, 0.8)`;
+                
+                const valLabel = document.createElement('div');
+                valLabel.textContent = val.toFixed(1);
+                valLabel.style.fontSize = '0.7rem';
+                valLabel.style.color = 'white';
+                cell.appendChild(valLabel);
+            }
             container.appendChild(cell);
         }
     }

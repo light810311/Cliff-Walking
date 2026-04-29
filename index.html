@@ -60,7 +60,26 @@
                     </div>
                 </div>
 
+                <div class="result-card" style="flex: 1 1 100%; max-width: 800px; margin: 0 auto;">
+                    <h2 class="result-title">SARSA Value Heatmap ($V(s)$)</h2>
+                    <div class="grid-wrapper">
+                        <div class="grid-container" id="sarsa-heatmap-container">
+                            <!-- Heatmap cells injected via JS -->
+                        </div>
+                    </div>
+                </div>
+
+                <div class="result-card" style="flex: 1 1 100%; max-width: 800px; margin: 0 auto;">
+                    <h2 class="result-title">Q-learning Value Heatmap ($V(s)$)</h2>
+                    <div class="grid-wrapper">
+                        <div class="grid-container" id="qlearning-heatmap-container">
+                            <!-- Heatmap cells injected via JS -->
+                        </div>
+                    </div>
+                </div>
+
                 <div class="result-card chart-card" style="flex: 1 1 100%; max-width: 800px; margin: 0 auto;">
+
                     <h2 class="result-title">Learning Curve (Total Reward per Episode)</h2>
                     <canvas id="learningCurveChart"></canvas>
                 </div>
